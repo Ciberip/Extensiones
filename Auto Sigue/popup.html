@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auto Sigue</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="identity"><img src="icons/icon48.png" width="44" height="44" alt=""><div class="brand"><h1>Auto Sigue <span class="version">3.2.4</span></h1><p>Continuidad de conversaciones</p></div></div>
+    <label class="toggle master" title="Activar o desactivar Auto Sigue"><input id="enabled" type="checkbox" aria-label="Activar Auto Sigue"><span class="track"></span></label>
+  </header>
+  <nav class="nav" aria-label="Secciones">
+    <button type="button" class="navbtn active" data-page="continuidad" aria-selected="true">Continuidad</button>
+    <button type="button" class="navbtn" data-page="rutas" aria-selected="false">Rutas IA</button>
+  </nav>
+  <main>
+    <div id="page-continuidad" class="page active">
+      <section class="hero">
+        <div class="section-label"><span class="eyedot"></span> CONVERSACIÓN ACTUAL</div>
+        <h2 id="currentChatTitle">Detectando conversación…</h2>
+        <p id="currentChatHint">Comprobando la pestaña activa.</p>
+        <div class="setting-line selected-line"><span class="setting-copy"><b>Auto Sigue en este chat</b><small>Activación independiente por conversación</small></span><label class="toggle"><input id="selectedChat" type="checkbox" aria-label="Activar Auto Sigue en este chat"><span class="track"></span></label></div>
+      </section>
+      <section class="card">
+        <div class="cardtop"><h3>Estado de Auto Sigue</h3><span id="stateBadge" class="state" data-state="off">INACTIVO</span></div>
+        <div class="stepper" aria-label="Pasos de continuación">
+          <div class="step" data-step="1"><i>1</i><span>Detectar<br>respuesta</span></div>
+          <div class="step" data-step="2"><i>2</i><span>Enviar<br>mensaje</span></div>
+          <div class="step" data-step="3"><i>3</i><span>Confirmar<br>envío</span></div>
+        </div>
+        <p id="statusText" class="status-text">Consultando el estado de la conversación…</p>
+        <p id="handoffStatus" class="detail"></p>
+        <p id="error" class="error" role="alert"></p>
+        <button type="button" id="handoffNow" class="btn primary" disabled>Enviar mensaje ahora <span aria-hidden="true">→</span></button>
+        <button type="button" id="handoffReset" class="btn secondary" disabled>Reiniciar estado</button>
+      </section>
+      <section class="card message-card">
+        <div class="cardtop"><h3>Qué debe enviar Auto Sigue</h3></div>
+        <p class="explain compact">Después de cada respuesta, enviará este mensaje en la misma conversación.</p>
+        <div class="config always-visible">
+          <label for="continueText">Mensaje de continuación<textarea id="continueText" rows="3" maxlength="500" placeholder="sigue"></textarea></label>
+          <label for="completionPhrase">Frase de fin de tarea<input id="completionPhrase" type="text" maxlength="80" placeholder="HE ACABADO"></label>
+          <p class="help">Auto Sigue indicará a la IA que escriba esa frase solo cuando termine completamente. Al detectarla al final de la respuesta, dejará de enviar mensajes.</p>
+          <button id="saveMessages" type="button" class="btn primary">Guardar mensajes <span aria-hidden="true">✓</span></button>
+        </div>
+      </section>
+      <details class="card advanced"><summary>Ajustes avanzados <span class="chevron" aria-hidden="true">⌄</span></summary>
+        <div class="config">
+          <div class="two-col"><label>Enviar tras terminar (s)<input id="finishDelaySeconds" type="number" min="1" max="30" step="1"></label><label>Máximo de envíos<input id="maxContinuesPerChat" type="number" min="0" max="9999" step="1"><small class="field-hint">0 = ilimitados</small></label></div>
+          <div class="setting-line inner"><span class="setting-copy"><b>Enviar por tiempo si se bloquea</b><small>Si la IA no termina a tiempo, intenta detener la generación y enviar el mensaje. No envía a ciegas.</small></span><label class="toggle"><input id="watchdogEnabled" type="checkbox" aria-label="Activar envío por tiempo"><span class="track"></span></label></div>
+          <label>Tiempo máximo de respuesta (min)<input id="watchdogMinutes" type="number" min="1" max="180" step="1"></label>
+        </div>
+      </details>
+    </div>
+    <div id="page-rutas" class="page">
+      <section class="card"><div class="cardtop"><h3>Plataformas y rutas</h3><span id="routeCount" class="count">0</span></div>
+        <p class="explain">Auto Sigue envía el mensaje configurado en la conversación actual cuando está activado. En ChatGPT hay un motor específico; en otras IA el envío depende de que su editor y botón de enviar sean identificables y comprobables. Si no puede confirmarse, se detiene para evitar duplicados. Las rutas personalizadas requieren permiso del dominio.</p>
+        <div id="routeList" class="routes"></div>
+      </section>
+      <section class="card"><h3>Añadir plataforma</h3>
+        <div class="config">
+          <label>Nombre de la IA<input id="routeName" type="text" maxlength="60" placeholder="Ej.: Mi asistente"></label>
+          <label>Dirección o patrón URL<input id="routePattern" type="text" maxlength="250" placeholder="https://ejemplo.ai/chat/*" spellcheck="false"></label>
+          <button id="routeAdd" type="button" class="btn primary">Añadir ruta <span aria-hidden="true">+</span></button>
+          <p id="routeMessage" class="feedback" role="status"></p>
+        </div>
+      </section>
+    </div>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+  </main>
+  <footer>Auto Sigue v3.2.4 <span>·</span> Envía en la conversación actual; no borra mensajes.</footer>
+</div>
+<script src="ai-routes.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

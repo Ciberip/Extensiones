@@ -1,0 +1,1 @@
+Auto Sigue 3.2.4. Extrae el ZIP y carga la carpeta en chrome://extensions. Recarga las pestañas.
