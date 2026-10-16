@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChatGPT HUD</title>
+<style>
+:root{color-scheme:light;--ink:#111827;--muted:#6b778c;--line:#dde4ed;--bg:#f4f6f9;--card:#fff;--violet:#6558f5;--blue:#2563eb;--green:#0a8f5b;--amber:#a86208}
+*{box-sizing:border-box}html,body{margin:0}body{width:430px;min-height:560px;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);font-size:13px}.app{min-height:560px}
+.header{position:relative;padding:18px 18px 15px;background:#111827;color:#fff;overflow:hidden}.header:after{content:"";position:absolute;right:-55px;top:-75px;width:190px;height:190px;border:32px solid rgba(255,255,255,.05);border-radius:50%}.headrow{position:relative;z-index:1;display:flex;align-items:center;gap:11px}.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#fff;color:#111827;font-weight:1000;font-size:11px;letter-spacing:.05em;box-shadow:0 7px 18px rgba(0,0,0,.18)}.headcopy{min-width:0;flex:1}.headcopy h1{margin:0;font-size:17px;line-height:1.1;font-weight:950;letter-spacing:-.03em}.headcopy p{margin:4px 0 0;color:#aeb8c8;font-size:10.5px;font-weight:650}.version{display:inline-block;margin-left:5px;color:#c7d2fe;font-size:9px;font-weight:900}.power{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border:1px solid rgba(255,255,255,.13);border-radius:999px;background:rgba(255,255,255,.08)}.power span{font-size:9px;font-weight:1000;letter-spacing:.08em}.toggle{position:relative;display:inline-block;width:42px;height:24px;flex:none}.toggle input{position:absolute;opacity:0;pointer-events:none}.track{position:absolute;inset:0;border-radius:999px;background:#596474;transition:.15s}.track:after{content:"";position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:.15s}.toggle input:checked+.track{background:#6d5af7}.toggle input:checked+.track:after{transform:translateX(18px)}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:10px 12px 0;background:#fff;border-bottom:1px solid var(--line)}.tab{appearance:none;border:0;border-bottom:3px solid transparent;background:transparent;color:#7b8798;padding:10px 7px 9px;font-size:11px;font-weight:900;cursor:pointer}.tab.active{color:#111827;border-bottom-color:#6558f5}.view{display:none;padding:12px}.view.active{display:block}
+.launch{position:relative;overflow:hidden;border:1px solid #d8deea;border-radius:22px;background:#fff;padding:16px;box-shadow:0 8px 24px rgba(30,41,59,.06)}.launch:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(#6558f5,#2563eb)}.launchTop{display:flex;align-items:flex-start;gap:12px}.launchIcon{display:grid;place-items:center;width:58px;height:58px;flex:none;border-radius:19px;background:#111827;color:#fff;font-size:12px;font-weight:1000;letter-spacing:.06em;box-shadow:0 10px 22px rgba(17,24,39,.18)}.launchCopy{min-width:0;flex:1}.launchCopy h2{margin:2px 0 0;font-size:16px;font-weight:950;letter-spacing:-.025em}.launchCopy p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.45}.hudState{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:5px 8px;border-radius:999px;background:#eef2f7;color:#64748b;font-size:9px;font-weight:1000;letter-spacing:.08em}.hudState:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.hudState.on{background:#eaf9f1;color:#077247}.hudState.on:before{background:#0ba866;box-shadow:0 0 0 3px rgba(11,168,102,.11)}.shortcut{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:10px 11px;border-radius:14px;background:#f5f3ff;border:1px solid #ddd8ff}.shortcut strong{font-size:10.7px}.keys{display:flex;align-items:center;gap:5px}.key{padding:5px 7px;border:1px solid #c8cfe0;border-bottom-width:3px;border-radius:8px;background:#fff;color:#334155;font:900 10px ui-monospace,SFMono-Regular,Menlo,monospace}.actions{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:11px}.btn{appearance:none;border:1px solid #d3dce8;border-radius:11px;background:#fff;color:#39485f;padding:9px 10px;font-size:10.7px;font-weight:900;cursor:pointer}.btn:hover{border-color:#b9c6d7;background:#f9fbfd}.btn.primary{border-color:#5f55e7;background:#6558f5;color:#fff;box-shadow:0 7px 16px rgba(101,88,245,.20)}.btn.primary:hover{background:#584be8}.btn.full{width:100%}
+.tip{margin-top:10px;padding:11px 12px;border:1px solid #d9e2ec;border-radius:14px;background:#fff;color:#66758b;font-size:10.7px;line-height:1.45}.tip b{color:#1f2937}.status{min-height:18px;margin:9px 2px 0;color:#6b778c;font-size:10.7px;font-weight:700}
+.section{margin-bottom:10px;border:1px solid #dde4ed;border-radius:18px;background:#fff;overflow:hidden}.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border-bottom:1px solid #edf1f5}.sectionHead strong{font-size:11.5px;font-weight:950}.badge{display:grid;place-items:center;min-width:24px;height:22px;padding:0 7px;border-radius:999px;background:#eef2f7;color:#607087;font-size:9px;font-weight:1000}.list{display:grid;gap:7px;padding:9px;max-height:250px;overflow:auto;scrollbar-width:thin}.empty{padding:16px 12px;color:#8793a5;font-size:10.8px;text-align:center}.chat{display:flex;align-items:center;gap:9px;padding:9px;border:1px solid #e0e6ef;border-radius:13px;background:#fff}.stateMark{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:11px;background:#eef2f7;color:#7a879a;font-weight:1000}.chat[data-status="working"]{border-color:#cec8ff;background:#faf9ff}.chat[data-status="working"] .stateMark{background:#6558f5;color:#fff}.chat[data-status="done"]{border:0;background:#08794f;color:#fff}.chat[data-status="done"] .stateMark{background:#fff;color:#08794f}.chat.excluded{border-color:#ecd7b4;background:#fff9ef;color:#111827}.chat.excluded .stateMark{background:#f7e8cd;color:#9a620d}.chatCopy{min-width:0;flex:1}.chatTitle{font-size:11.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chatMeta{margin-top:3px;color:#7d899b;font-size:9.5px;font-weight:700}.chat[data-status="done"] .chatMeta{color:#d9ffea}.smallBtn{appearance:none;border:1px solid #d3dce8;border-radius:9px;background:#fff;color:#526178;padding:7px 8px;font-size:9px;font-weight:900;cursor:pointer}.smallBtn.restore{border-color:#c8d0f4;background:#f4f4ff;color:#514db2}.smallBtn.exclude{border-color:#ead2a9;background:#fff8eb;color:#905806}.chat[data-status="done"] .smallBtn{border-color:rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff}.clear{margin:0 9px 9px;width:calc(100% - 18px)}.hidden{display:none!important}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px}.setting+.setting{border-top:1px solid #edf1f5}.settingCopy{min-width:0}.settingCopy strong{display:block;font-size:11.5px;font-weight:900}.settingCopy p{margin:4px 0 0;color:#7b8798;font-size:10.2px;line-height:1.35}.rangeWrap{padding:12px;border-top:1px solid #edf1f5}.rangeTop{display:flex;align-items:center;justify-content:space-between;gap:10px}.rangeTop strong{font-size:11.5px}.value{color:#5b52d6;font:900 10px ui-monospace,SFMono-Regular,Menlo,monospace}.range{width:100%;margin-top:10px;accent-color:#6558f5}.foot{padding:0 14px 12px;color:#97a1b0;font-size:9.5px;text-align:center}
+body.off .header{background:#374151}body.off .launch,body.off .section{filter:saturate(.65);opacity:.78}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="headrow">
+      <div class="logo">HUD</div>
+      <div class="headcopy"><h1>ChatGPT HUD <span class="version">v6.16</span></h1><p>Seguimiento flotante mientras navegas por cualquier web.</p></div>
+      <label class="power"><span id="masterState">ACTIVO</span><span class="toggle"><input id="enabled" type="checkbox"><span class="track"></span></span></label>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <button class="tab active" data-view="control" type="button">Control</button>
+    <button class="tab" data-view="chats" type="button">Chats</button>
+    <button class="tab" data-view="avisos" type="button">Avisos</button>
+  </nav>
+
+  <main>
+    <section id="view-control" class="view active">
+      <div class="launch">
+        <div class="launchTop">
+          <div class="launchIcon">HUD</div>
+          <div class="launchCopy"><h2>Panel flotante arrastrable</h2><p>Ahora puedes moverlo físicamente por la página. La posición se guarda para la siguiente vez.</p><span id="hudState" class="hudState">OCULTO</span></div>
+        </div>
+        <div class="shortcut"><strong>Mostrar / ocultar desde cualquier web</strong><span class="keys"><span class="key">Alt</span><span>+</span><span class="key">Mayús</span></span></div>
+        <div class="actions"><button id="toggleHud" class="btn primary" type="button">Mostrar HUD</button><button id="test" class="btn" type="button">Probar aviso</button></div>
+      </div>
+      <div class="tip"><b>Nuevo formato:</b> el HUD ya no es un panel fijo de tarjetas grandes. Es un dock compacto que puedes arrastrar, contraer y cerrar. Los chats terminados cambian a un bloque verde grande con “LISTO”.</div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section id="view-chats" class="view">
+      <div class="section">
+        <div class="sectionHead"><strong>Chats abiertos</strong><span id="openCount" class="badge">0</span></div>
+        <div id="openEmpty" class="empty">No hay chats de ChatGPT abiertos.</div>
+        <div id="chatList" class="list"></div>
+      </div>
+      <div class="section">
+        <div class="sectionHead"><strong>Excluidos</strong><span id="excludedCount" class="badge">0</span></div>
+        <div id="excludedEmpty" class="empty">No hay chats excluidos.</div>
+        <div id="excludedList" class="list"></div>
+        <button id="clearExcluded" class="btn clear hidden" type="button">Volver a incluir todos</button>
+      </div>
+    </section>
+
+    <section id="view-avisos" class="view">
+      <div class="section">
+        <div class="setting"><div class="settingCopy"><strong>Avisar aunque estés viendo ese chat</strong><p>Por defecto prioriza los chats que terminan en segundo plano.</p></div><label class="toggle"><input id="notifyActiveChat" type="checkbox"><span class="track"></span></label></div>
+        <div class="setting"><div class="settingCopy"><strong>Sonido de finalización</strong></div><label class="toggle"><input id="soundEnabled" type="checkbox"><span class="track"></span></label></div>
+        <div class="setting"><div class="settingCopy"><strong>Decir el nombre del chat</strong></div><label class="toggle"><input id="voiceAnnouncements" type="checkbox"><span class="track"></span></label></div>
+        <div class="setting"><div class="settingCopy"><strong>Destacar el título de la pestaña</strong></div><label class="toggle"><input id="showTitleFlash" type="checkbox"><span class="track"></span></label></div>
+        <div class="rangeWrap"><div class="rangeTop"><strong>Volumen de avisos</strong><span id="volumeValue" class="value"></span></div><input id="soundVolume" class="range" type="range" min="0" max="100" step="1"></div>
+      </div>
+    </section>
+  </main>
+  <div class="foot">El HUD funciona en páginas web normales http/https; Chrome bloquea sus páginas internas por seguridad.</div>
+</div>
+<script src="popup-v610.js"></script>
+</body>
+</html>
