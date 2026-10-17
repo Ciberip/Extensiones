@@ -31,5 +31,6 @@ jobs:
           git add Descargas/Aviso-IA.zip Descargas/Auto-Sigue.zip
           if ! git diff --cached --quiet; then
             git commit -m "Actualizar ZIP de las extensiones"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
