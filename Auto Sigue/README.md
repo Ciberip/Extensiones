@@ -1,18 +1,29 @@
-# Auto Sigue v3.2.4
+# Auto Sigue v3.4.1
 
-Extensión Manifest V3 para continuar en la misma conversación.
+Extensión Chrome Manifest V3. Se ha actualizado la extensión original del ZIP (sin crear otra app).
 
-## Controles
-- Activa Auto Sigue en cada conversación.
-- En «Qué debe enviar Auto Sigue», cambia el mensaje y la frase que debe indicar la IA cuando haya terminado; pulsa Guardar mensajes.
-- La instrucción que se envía pide que el modelo termine su última respuesta con esa frase, para parar Auto Sigue.
-- En Ajustes avanzados, configura el retardo tras terminar, el máximo de envíos (0 = ilimitados) y el envío por tiempo ante bloqueos.
+## Funcionamiento
 
-## Precauciones
-- El envío por tiempo intenta detener una generación excesivamente larga antes de enviar. Si no hay botón Detener o no puede comprobarse el envío, se muestra un error y no se insiste automáticamente.
-- 0 no anula las protecciones frente a duplicados, errores de interfaz ni finalización de tarea.
-- El motor genérico para otras IA depende de la interfaz de cada plataforma. Sin prueba real por plataforma no se garantiza su compatibilidad.
-- No hay migración a otro chat ni borrado automático.
+- Activa el interruptor global y **Auto Sigue en este chat** en cada conversación.
+- Tras completar y estabilizarse cada respuesta, envía **autosigue** (configurable) en la misma conversación.
+- El mensaje recuerda a la IA que debe escribir **HE ACABADO** en la última línea cuando termine la tarea.
+- **Solo** ese marcador como última línea de la respuesta del asistente marca la tarea como terminada. Una mención incidental a la frase no cuenta.
+- El límite predeterminado es **0 = ilimitado**. El límite personalizado distinto de cero se respeta.
+- Si faltan temporalmente el editor o el botón Enviar, reintenta con espera progresiva (4, 8, 16 y 30 s).
+- Nunca pisa mensajes escritos manualmente. Comprueba un envío por aparición del mensaje del usuario antes de continuar.
+- Si hubo clic sin confirmación, bloquea nuevos envíos para evitar duplicados y muestra REVISAR en el panel. Esta es una protección, NO significa que la tarea haya terminado.
+- Si otro mensaje del usuario espera respuesta, no envía otra continuación.
+- Se conserva el botón de desactivación voluntaria y el modo de envío manual.
 
-## Instalación
-Extraer el ZIP, abrir chrome://extensions, activar Modo desarrollador, cargar la carpeta descomprimida y recargar las pestañas de IA. Desactivar versiones anteriores para evitar duplicados.
+## Instalación o actualización
+
+Descomprime el ZIP. En `chrome://extensions`, activa *Modo desarrollador*, desactiva la versión antigua y pulsa **Cargar descomprimida** sobre la carpeta extraída `Auto_Sigue_3.4.1_CARGAR_DIRECTO`, que contiene `manifest.json` DIRECTAMENTE en su raíz. No selecciones el ZIP ni una carpeta superior. Recarga ChatGPT. No actives dos copias simultáneamente.
+
+## Limitaciones
+
+- Chrome/ChatGPT pueden cambiar sus interfaces; los envíos reales requieren una prueba en el navegador del usuario.
+- Si la pestaña está suspendida o el navegador cerrado, no puede continuar. El navegador puede ralentizar los temporizadores en segundo plano.
+- Los errores de red o de capacidad/límites de ChatGPT no se pueden superar por parte de la extensión.
+- Tras un clic de envío **sin confirmación**, no se reintenta automáticamente: evitar duplicados tiene prioridad sobre seguir a ciegas.
+- En otras plataformas se utilizan selectores genéricos, menos fiables, y conviene hacer una prueba por cada servicio.
+- No se crean ni se borran chats automáticamente.

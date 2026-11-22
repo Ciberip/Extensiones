@@ -3,19 +3,19 @@
 
   const DEFAULTS = {
     enabled: true,
-    continueText: 'sigue',
+    continueText: 'autosigue',
     completionPhrase: 'HE ACABADO',
     finishDelaySeconds: 3,
     watchdogEnabled: true,
     watchdogMinutes: 20,
-    maxContinuesPerChat: 12
+    maxContinuesPerChat: 0
   };
 
   const END_PHRASE = 'HE ACABADO';
   const LOOP_MS = 700;
   const SEND_CONFIRM_MS = 18000;
   const SEND_RETRY_COOLDOWN_MS = 3500;
-  const VERSION = '2.8.0';
+  const VERSION = '3.4.2';
   const WORKFLOW_PREFIX = 'AUTOSIGUE_V15';
   const TERMINAL_DELAY_MS = 2500;
 
@@ -38,6 +38,81 @@
   let lastSendMethod = '';
   let sendStage = '';
   let ambiguousSend = false;
+  let persistedLedger = {};
+  let lastReconciliation = 0;
+  const recoveryClicksByTurn = new Map();
+  function continuationMarker(token) {return '[AS_TX:' + token + ']';}
+  function userTurnWithMarker(token) {
+    const marker=continuationMarker(token);
+    const editor=getComposer();
+    return userNodes().some(n => n.isConnected && !(editor && n.contains(editor)) &&
+      String(n.innerText||n.textContent||'').includes(marker));
+  }
+  async function reconcileContinueLedger(force=false) {
+    if (!force && Date.now() - lastReconciliation < 8000) return;
+    lastReconciliation = Date.now();
+    const current = latestAssistant();
+    const currentTurn = turnId(current);
+    for (const [turn, record] of Object.entries(persistedLedger)) {
+      if (!record?.token || !['uncertain', 'clicked'].includes(record.state)) continue;
+      if (userTurnWithMarker(record.token)) {
+        const done = await continueJournal('CONTINUE_RECONCILE', turn, record.token, true);
+        if (done?.ok) {
+          persistedLedger[turn] = { ...record, state: 'sent', reconciled: true };
+          continueCount += 1;
+          await persistContinueCount();
+          handledTurnId = turn;
+          ambiguousSend = false;
+          lastError = '';
+          sendStage = 'confirmado';
+          lastAction = 'Envío confirmado en el historial';
+          recoveryClicksByTurn.delete(turn);
+        }
+        continue;
+      }
+      // Nunca suspender por un clic sin confirmación. Seguir comprobando.
+      // Repetir el clic SOLO si el mismo mensaje/token continúa en el editor;
+      // nunca reescribir un mensaje que podría haberse enviado.
+      if (turn !== currentTurn || !allowedToSend() || sendBusy || isAnswering() ||
+          hasPendingUserTurn(current) || activeUiError()) continue;
+      ambiguousSend = true;
+      lastError = '';
+      sendStage = 'pendiente';
+      lastAction = 'Comprobando automáticamente el envío en el historial';
+      const editor = getComposer();
+      const draft = editor ? editorText(editor) : '';
+      if (!draft || !draft.includes(continuationMarker(record.token))) continue;
+      const attempt = recoveryClicksByTurn.get(turn) || { count: 0, at: 0 };
+      if (attempt.count >= 2 || Date.now() - Number(record.at || 0) < 30000 ||
+          Date.now() - attempt.at < 90000) continue;
+      const button = getSendButton();
+      if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') continue;
+      recoveryClicksByTurn.set(turn, { count: attempt.count + 1, at: Date.now() });
+      sendStage = 'enviando';
+      lastAction = 'Reintentando el borrador que seguía sin enviar';
+      button.click();
+    }
+  }
+
+  const continueJournal = (type, turn, token = '', confirmed = false) =>
+    chrome.runtime.sendMessage({type,chatKey,turn,token,confirmed}).catch(e => ({ok:false,error:String(e)}));
+  async function restoreContinueState() {
+    const data=await chrome.storage.local.get({autosigueContinueLedger:{},autosigueContinueCounts:{}});
+    persistedLedger=data.autosigueContinueLedger?.[chatKey]?.records || {};
+    continueCount=Number(data.autosigueContinueCounts?.[chatKey]||0);
+    const id=turnId(latestAssistant());
+    const record=persistedLedger[id];
+    if(record && ['clicked','uncertain'].includes(record.state)) {
+      ambiguousSend=true;
+      lastError='';
+      sendStage='pendiente';
+      lastAction='Recuperando automáticamente el último envío';
+    } else if(record?.state==='sent') handledTurnId=id;
+  }
+  async function persistContinueCount() {
+    const data=await chrome.storage.local.get({autosigueContinueCounts:{}});
+    await chrome.storage.local.set({autosigueContinueCounts:{...data.autosigueContinueCounts,[chatKey]:continueCount}});
+  }
   let scanBusy = false;
   let workflow = null;
   let workflowBusy = false;
@@ -51,6 +126,8 @@
   let handoffReceiveBusy = false;
   let receivedHandoffId = '';
   let failedTurnAttempts = new Map();
+  const SAFE_RETRY_MIN_MS = 4000;
+  const SAFE_RETRY_MAX_MS = 30000;
   let lastObservedTurn = '';
   let requestHandoffFromLimit = false;
   let lastHandoffPageAttempt = 0;
@@ -86,15 +163,17 @@
   }
 
   function isEndPhrase(value) {
+    // Solo la última línea visible, sin texto posterior, puede cerrar la tarea.
+    // Una mención a «HE ACABADO» dentro de una frase o instrucción NO la cierra.
     const marker = endComparable(settings.completionPhrase || END_PHRASE);
-    const text = endComparable(value);
-    return Boolean(marker && text && (text === marker || text.endsWith(' ' + marker)));
+    const last = String(value || '').replace(/\u200b/g, '').trim().split(/\r?\n/).map(endComparable).filter(Boolean).at(-1);
+    return Boolean(marker && last === marker);
   }
 
   function buildContinuationMessage() {
-    const base = cleanText(settings.continueText || 'sigue') || 'sigue';
+    const base = cleanText(settings.continueText || 'autosigue') || 'autosigue';
     const marker = cleanText(settings.completionPhrase || END_PHRASE) || END_PHRASE;
-    return `${base} Cuando hayas terminado completamente la tarea, escribe exactamente «${marker}» al final de la respuesta. No lo escribas antes de terminar.`;
+    return `${base} Cuando hayas terminado completamente la tarea, escribe exactamente «${marker}» en la última línea de tu respuesta. No lo escribas antes de terminar.`;
   }
 
   function hashText(text) {
@@ -348,7 +427,14 @@
   function assistantText(node) {
     if (!node) return '';
     const body = node.querySelector?.('.markdown, [data-markdown-text-style="assistant-message"]');
-    return cleanText((body || node).innerText || (body || node).textContent || '');
+    return String((body || node).innerText || (body || node).textContent || '').trim();
+  }
+
+  function hasPendingUserTurn(info = latestAssistant()) {
+    const user = userNodes().at(-1);
+    if (!user) return false;
+    if (!info.node) return true;
+    return Boolean(info.node.compareDocumentPosition(user) & Node.DOCUMENT_POSITION_FOLLOWING);
   }
 
   function latestAssistant() {
@@ -496,7 +582,9 @@
 
       // La URL /c/... puede aparecer antes de que se haya aceptado el mensaje.
       // No considerar el mero cambio de URL una confirmación de envío.
-      if (users > snapshot.users ||
+      if (snapshot.sendMarker) {
+        if (userTurnWithMarker(snapshot.sendMarker)) return true;
+      } else if (users > snapshot.users ||
           (gotConversationId && emptied && (isAnswering() || assistants > snapshot.assistants))) {
         return true;
       }
@@ -510,7 +598,7 @@
     const data = await chrome.storage.local.get({ stoppedChats: {} });
     const stoppedChats = { ...(data.stoppedChats || {}), [chatKey]: true };
     await chrome.storage.local.set({ stoppedChats });
-    lastAction = 'HE ACABADO detectado: chat detenido';
+    lastAction = `${settings.completionPhrase || END_PHRASE} detectado al final: chat finalizado`;
     lastError = '';
     if (false && !workflowEnabled() && workflow?.autoMove && workflow?.projectTarget) {
       await saveWorkflow({ state: 'done', finishedAt: Date.now(), projectStatus: 'pending' });
@@ -534,17 +622,22 @@
   }
 
   function maxReached() {
-    const configured = Number(settings.maxContinuesPerChat);
-    // 0 significa ilimitado; no imponer límites heredados ni valores predeterminados ocultos.
-    return Number.isFinite(configured) && configured > 0 && continueCount >= configured;
+    // Auto Sigue no se detiene por contadores. Solo la última línea de fin cierra.
+    return false;
   }
 
   async function sendContinue(reason, { force = false, textOverride = null, isStep = false } = {}) {
-    if (sendBusy || ambiguousSend) { if(ambiguousSend)lastError='Último envío sin confirmar. Revisa el chat y reinicia el estado antes de reintentar.'; return false; }
+    if (sendBusy || ambiguousSend) { if (ambiguousSend) { lastError=''; sendStage='pendiente'; lastAction='Comprobando el envío sin duplicarlo'; } return false; }
     if (!allowedToSend()) return false;
     if (maxReached() && !force && !isStep) return false;
-    if (!force && isAnswering()) return false;
+    if (!force && (isAnswering() || hasPendingUserTurn())) return false;
 
+    let preparedEditor = null;
+    let preparedText = '';
+    let submitAttempted = false;
+    let journalTurn = '';
+    let journalToken = '';
+    let journalSent = false;
     sendBusy = true;
     sendStage = 'escribiendo';
     lastError = '';
@@ -567,12 +660,31 @@
         lastAction = reason;
         return false;
       }
-      const text = textOverride === null ? buildContinuationMessage() : textOverride;
+      let text = textOverride === null ? buildContinuationMessage() : textOverride;
+      preparedEditor = editor;
+      preparedText = text;
+      if (!force && !isStep) {
+        journalTurn = turnId(latest);
+        if (!journalTurn) { lastError='No se identifica el turno a continuar'; return false; }
+        const reservation = await continueJournal('CONTINUE_RESERVE',journalTurn);
+        if (!reservation?.ok) {
+          lastError=reservation?.error || 'No se pudo reservar el envio.';
+          if(['sent','clicked','uncertain'].includes(reservation?.state)) {
+            handledTurnId=journalTurn;
+            ambiguousSend=reservation.state!=='sent';
+          }
+          return false;
+        }
+        journalToken=reservation.token;
+        text += '\n\n' + continuationMarker(journalToken);
+        preparedText=text;
+      }
       const snapshot = {
         users: userNodes().length,
         assistants: assistantNodes().length,
         hadConversationId: /\/c\/[^/?#]+/.test(location.pathname),
-        editorWasPopulated: true
+        editorWasPopulated: true,
+        sendMarker: journalToken
       };
 
       if (!allowedToSend()) return false;
@@ -595,39 +707,46 @@
         return false;
       }
       if (button && allowedToSend()) {
+        if (journalToken) {
+          const marked=await continueJournal('CONTINUE_CLICKED',journalTurn,journalToken);
+          if(!marked?.ok) throw new Error('No se pudo guardar el intento: '+(marked?.error||'bloqueado'));
+        }
         sendStage = 'enviando';
         ambiguousSend = true;
+        submitAttempted = true;
         button.click();
         submitted = true;
       }
 
-      if (!submitted && allowedToSend()) {
-        const form = editor.closest('form');
-        if (form && typeof form.requestSubmit === 'function') {
-          try {
-            form.requestSubmit();
-            submitted = true;
-            ambiguousSend = true;
-            lastSendMethod += '+requestSubmit';
-          } catch (_) {}
-        }
-      }
-
-      // Un KeyboardEvent sintético no representa una pulsación real en React.
-      // No simular éxito si ChatGPT no ofrece un botón o un form real.
+      // No usar form.requestSubmit() sin un botón de envío confirmado:
+      // podría disparar envíos invisibles o pulsar un formulario equivocado.
+      // Un KeyboardEvent sintético tampoco es fiable en React.
 
       if (!submitted || !(await confirmSent(snapshot, editor))) {
-        sendStage = 'error';
-        lastError = submitted
-          ? 'Envío NO COMPROBABLE: se intentó una vez y no apareció un mensaje nuevo del usuario. Revisa el chat; no se repite para evitar duplicados.'
-          : 'No hay botón de envío utilizable para este editor. No se ha enviado el mensaje.';
+        sendStage = 'pendiente';
+        lastError = submitted ? '' : 'No hay botón de envío utilizable para este editor.';
+        if (submitted) lastAction = 'Comprobando el último envío sin repetirlo a ciegas';
         lastAction = reason;
         return false;
       }
 
       sendStage = 'confirmado';
       ambiguousSend = false;
-      if (!isStep) continueCount += 1;
+      if(journalToken) {
+        const result=await continueJournal('CONTINUE_RESULT',journalTurn,journalToken,true);
+        if(!result?.ok) {
+          ambiguousSend=true;
+          sendStage='pendiente';
+          lastError='';
+          lastAction='Recuperando el registro del envío';
+          return false;
+        }
+        journalSent=true;
+      }
+      if (!isStep) {
+        continueCount += 1;
+        await persistContinueCount();
+      }
       lastAction = isStep ? reason : `${reason}: enviado “${text}”`;
       lastError = '';
       answeringSince = Date.now();
@@ -638,7 +757,17 @@
       lastAction = reason;
       return false;
     } finally {
+      if(journalToken && !journalSent) {
+        if(submitAttempted) await continueJournal('CONTINUE_RESULT',journalTurn,journalToken,false);
+        else await continueJournal('CONTINUE_RELEASE',journalTurn,journalToken);
+      }
       if (lastError && sendStage !== 'confirmado') sendStage = 'error';
+      // Un error antes de pulsar Enviar es recuperable: retirar solo nuestro borrador.
+      // Tras pulsar Enviar no volver a intentarlo sin comprobar: evita duplicados.
+      if (lastError && !submitAttempted && preparedEditor?.isConnected &&
+          editorText(preparedEditor) === cleanText(preparedText)) {
+        clearEditor(preparedEditor);
+      }
       sendBusy = false;
       await publishStatus();
     }
@@ -655,6 +784,7 @@
     lastAssistantFingerprint = '';
     lastAssistantChangeAt = Date.now();
     stableSamples = 0;
+    ambiguousSend = false;
     answeringSince = null;
     watchdogAttempted = false;
     nextRetryAt = 0;
@@ -671,58 +801,15 @@
     workflow = data.workflowByChat?.[chatKey] || null;
     handoffOptions = readHandoffOptions(data.handoffOptionsByChat?.[chatKey]);
     handoffStatus = data.handoffStatusByChat?.[chatKey] || null;
+    await restoreContinueState();
+    await reconcileContinueLedger(true);
   }
 
   async function watchdog() {
-    if (!allowedToSend() || !settings.watchdogEnabled || watchdogBusy || maxReached() || ambiguousSend) return;
-    if (!isAnswering()) {
-      answeringSince = null;
-      watchdogAttempted = false;
-      return;
-    }
-    if (!answeringSince) answeringSince = Date.now();
-
-    const minutes = Math.max(1, Number(settings.watchdogMinutes) || 20);
-    if (watchdogAttempted || Date.now() - answeringSince < minutes * 60 * 1000) return;
-
-    watchdogAttempted = true; // Una sola intervención por respuesta; no repetir Detener en bucle.
-    watchdogBusy = true;
-    try {
-      if (workflowEnabled()) {
-        if (['awaiting','running','sending'].includes(workflow.state)) {
-          await saveWorkflow({ state: 'error', error: `Respuesta bloqueada más de ${minutes} min. Revisión manual necesaria.` });
-          lastError = workflow.error;
-          lastAction = 'Secuencia pausada por bloqueo';
-        }
-        return;
-      }
-      const stop = getStopButton();
-      if (!stop) {
-        lastError = `Watchdog: no encuentro el botón Detener tras ${minutes} min`;
-        lastAction = 'Watchdog';
-        return;
-      }
-
-      if (!allowedToSend()) return;
-      stop.click();
-      lastAction = `Tiempo máximo: generación detenida tras ${minutes} min`;
-      const until = Date.now() + 12000;
-      while (Date.now() < until && isAnswering()) await sleep(200);
-      if (isAnswering()) {
-        lastError = 'Watchdog: ChatGPT no se detuvo';
-        return;
-      }
-
-      answeringSince = null;
-      await sleep(600);
-      const ok = await sendContinue('Envío por tiempo', { force: false });
-      if (!ok && !lastError) lastError = 'Watchdog: no se pudo enviar “sigue”';
-    } finally {
-      watchdogBusy = false;
-      await publishStatus();
-    }
+    // Vigilancia pasiva: no interrumpir nunca la respuesta de la IA por tiempo.
+    if (!allowedToSend() || !settings.watchdogEnabled) return;
+    if (isAnswering() && !answeringSince) answeringSince = Date.now();
   }
-
 
   function finishedResponseForWorkflow() {
     // A completed answer must have no live stop/streaming indicators and a stable assistant turn.
@@ -1475,6 +1562,7 @@
 
   async function scan() {
     await syncChatState();
+    await reconcileContinueLedger();
     if (!chatKey.startsWith('c:') || !selectedForThisChat()) {
       // Recepción de otros chats deshabilitada.
     }
@@ -1486,6 +1574,8 @@
       lastAssistantFingerprint = fp;
       lastAssistantChangeAt = Date.now();
       stableSamples = 0;
+      failedTurnAttempts.clear();
+      nextRetryAt = 0;
     } else if (info.text) {
       stableSamples += 1;
     }
@@ -1527,7 +1617,8 @@
       await publishStatus();
       return;
     }
-    if (selectedForThisChat() && !workflowEnabled() && info.text && isEndPhrase(info.text) && !isAnswering()) {
+    if (selectedForThisChat() && !workflowEnabled() && info.text && isEndPhrase(info.text) && !isAnswering() && !hasPendingUserTurn(info) &&
+        Date.now() - lastAssistantChangeAt >= Math.max(1200, Number(settings.finishDelaySeconds || 3) * 1000) && stableSamples >= 3) {
       if (!stopped) await markStopped();
       return;
     }
@@ -1563,26 +1654,43 @@
 
     if (allowedToSend() && maxReached() && !answering && info.text) {
       const delay = Math.max(2500, (Number(settings.finishDelaySeconds) || 3) * 1000);
-      if (Date.now() - lastAssistantChangeAt > delay) lastAction = 'Máximo de continuaciones alcanzado; no se cambia de chat';
+      if (Date.now() - lastAssistantChangeAt > delay) lastAction = 'Límite de envíos configurado: no se cambia de chat';
     }
-    if (!allowedToSend() || sendBusy || maxReached() || answering || !info.text) {
+    if (!allowedToSend() || sendBusy || maxReached() || answering || !info.text || hasPendingUserTurn(info)) {
       await publishStatus();
       return;
     }
 
     const id = turnId(info);
+    const previous=persistedLedger[id];
+    if(previous && ['sent','clicked','uncertain'].includes(previous.state)) {
+      handledTurnId=id;
+      if(previous.state!=='sent') {
+        ambiguousSend=true;
+        sendStage='pendiente';
+        lastError='';
+        lastAction='Comprobando automáticamente el último envío';
+      }
+      await publishStatus();
+      return;
+    }
     const delayMs = Math.max(1200, (Number(settings.finishDelaySeconds) || 3) * 1000);
     const stableLongEnough = Date.now() - lastAssistantChangeAt >= delayMs && stableSamples >= 3;
 
     if (stableLongEnough && id && id !== handledTurnId && Date.now() >= nextRetryAt) {
-      const attempts = failedTurnAttempts.get(id) || 0;
-      if (attempts === 0) {
+      // Reintentar solo errores ANTERIORES al clic (editor aún sin enviar).
+      // Un envío con resultado ambiguo requiere revisión para no generar duplicados.
+      if (!ambiguousSend) {
         const ok = await sendContinue('Respuesta terminada');
-        if (ok) handledTurnId = id;
-        else if (!stopped) {
-          failedTurnAttempts.set(id, 1);
-          lastAction = 'Auto-Sigue detenido en este turno: pulsa Enviar «sigue» para reintentar manualmente';
-          nextRetryAt = Date.now() + SEND_RETRY_COOLDOWN_MS;
+        if (ok) {
+          handledTurnId = id;
+          failedTurnAttempts.delete(id);
+          nextRetryAt = 0;
+        } else if (!stopped) {
+          const attempts = (failedTurnAttempts.get(id) || 0) + 1;
+          failedTurnAttempts.set(id, attempts);
+          nextRetryAt = Date.now() + Math.min(SAFE_RETRY_MAX_MS, SAFE_RETRY_MIN_MS * (2 ** Math.min(3, attempts - 1)));
+          if (!ambiguousSend) lastAction = `Envío pendiente: reintento automático ${attempts} (sin clic previo)`;
         }
       }
     }
@@ -1639,7 +1747,13 @@
   }
 
   async function load() {
-    const data = await chrome.storage.local.get({ ...DEFAULTS, stoppedChats: {}, enabledChats: {}, workflowByChat: {}, handoffOptionsByChat: {}, handoffStatusByChat: {} });
+    const data = await chrome.storage.local.get({ ...DEFAULTS, stoppedChats: {}, enabledChats: {}, workflowByChat: {}, handoffOptionsByChat: {}, handoffStatusByChat: {}, autoSigueMigration330: false });
+    // Migrar exclusivamente los valores predeterminados de v3.2.4.
+    if (!data.autoSigueMigration330) {
+      if (data.maxContinuesPerChat === 12) data.maxContinuesPerChat = 0;
+      if (data.continueText === 'sigue') data.continueText = 'autosigue';
+      await chrome.storage.local.set({ maxContinuesPerChat: data.maxContinuesPerChat, continueText: data.continueText, autoSigueMigration330: true });
+    }
     settings = { ...DEFAULTS };
     for (const key of Object.keys(DEFAULTS)) settings[key] = data[key];
     stopped = Boolean(data.stoppedChats?.[chatKey]);
@@ -1650,6 +1764,8 @@
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
+    if(area==='local' && changes.autosigueContinueLedger)
+      persistedLedger=changes.autosigueContinueLedger.newValue?.[chatKey]?.records || {};
     if (area !== 'local') return;
     for (const key of Object.keys(DEFAULTS)) {
       if (changes[key]) settings[key] = changes[key].newValue;
@@ -1792,7 +1908,10 @@
       return true;
     }
     if (msg?.type === 'RESET_SEND_STATUS') {
-      sendStage='';lastError='';lastAction='';nextRetryAt=0;ambiguousSend=false;
+      sendStage='';lastError='';lastAction='';nextRetryAt=0;
+      if(Object.values(persistedLedger).some(v=>['clicked','uncertain'].includes(v.state))) {
+        ambiguousSend=true;sendStage='pendiente';lastError='';lastAction='Recuperando el envío anterior sin duplicarlo';
+      } else ambiguousSend=false;
       if (stopped) {
         clearStoppedForChat().then(() => sendResponse({ok:true})).catch(error => sendResponse({ok:false,error:String(error)}));
         return true;
@@ -1805,13 +1924,22 @@
         .catch(err => sendResponse({ ok: false, error: String(err) }));
       return true;
     }
+    if (msg?.type === 'WAKE_SCAN') {
+      if(scanBusy) {sendResponse({ok:true,skipped:true});return true;}
+      scanBusy=true;
+      scan().then(()=>sendResponse({ok:true})).catch(e=>sendResponse({ok:false,error:String(e)}))
+        .finally(()=>{scanBusy=false;});
+      return true;
+    }
     if (msg?.type === 'GET_STATUS') {
       syncChatState().then(() => sendResponse({ ok: true, status: getStatus() })).catch(() => sendResponse({ ok: false }));
       return true;
     }
   });
 
-  load().then(() => {
+  load().then(async () => {
+    await restoreContinueState();
+    await reconcileContinueLedger(true);
     async function guardedScan() {
       if (scanBusy) return;
       scanBusy = true;

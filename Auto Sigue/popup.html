@@ -9,7 +9,7 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="identity"><img src="icons/icon48.png" width="44" height="44" alt=""><div class="brand"><h1>Auto Sigue <span class="version">3.2.4</span></h1><p>Continuidad de conversaciones</p></div></div>
+    <div class="identity"><img src="icons/icon48.png" width="44" height="44" alt=""><div class="brand"><h1>Auto Sigue <span class="version">3.4.1</span></h1><p>Continuidad de conversaciones</p></div></div>
     <label class="toggle master" title="Activar o desactivar Auto Sigue"><input id="enabled" type="checkbox" aria-label="Activar Auto Sigue"><span class="track"></span></label>
   </header>
   <nav class="nav" aria-label="Secciones">
@@ -41,23 +41,23 @@
         <div class="cardtop"><h3>Qué debe enviar Auto Sigue</h3></div>
         <p class="explain compact">Después de cada respuesta, enviará este mensaje en la misma conversación.</p>
         <div class="config always-visible">
-          <label for="continueText">Mensaje de continuación<textarea id="continueText" rows="3" maxlength="500" placeholder="sigue"></textarea></label>
+          <label for="continueText">Mensaje de continuación<textarea id="continueText" rows="3" maxlength="500" placeholder="autosigue"></textarea></label>
           <label for="completionPhrase">Frase de fin de tarea<input id="completionPhrase" type="text" maxlength="80" placeholder="HE ACABADO"></label>
-          <p class="help">Auto Sigue indicará a la IA que escriba esa frase solo cuando termine completamente. Al detectarla al final de la respuesta, dejará de enviar mensajes.</p>
+          <p class="help">Auto Sigue indicará a la IA que escriba esa frase solo cuando termine completamente. Al detectarla como última línea de la respuesta, dejará de enviar mensajes.</p>
           <button id="saveMessages" type="button" class="btn primary">Guardar mensajes <span aria-hidden="true">✓</span></button>
         </div>
       </section>
       <details class="card advanced"><summary>Ajustes avanzados <span class="chevron" aria-hidden="true">⌄</span></summary>
         <div class="config">
-          <div class="two-col"><label>Enviar tras terminar (s)<input id="finishDelaySeconds" type="number" min="1" max="30" step="1"></label><label>Máximo de envíos<input id="maxContinuesPerChat" type="number" min="0" max="9999" step="1"><small class="field-hint">0 = ilimitados</small></label></div>
-          <div class="setting-line inner"><span class="setting-copy"><b>Enviar por tiempo si se bloquea</b><small>Si la IA no termina a tiempo, intenta detener la generación y enviar el mensaje. No envía a ciegas.</small></span><label class="toggle"><input id="watchdogEnabled" type="checkbox" aria-label="Activar envío por tiempo"><span class="track"></span></label></div>
+          <label>Enviar tras terminar (s)<input id="finishDelaySeconds" type="number" min="1" max="30" step="1"></label>
+          <div class="setting-line inner"><span class="setting-copy"><b>Vigilar respuestas largas (sin interrumpir)</b><small>Solo informa del tiempo transcurrido. No interrumpe respuestas largas.</small></span><label class="toggle"><input id="watchdogEnabled" type="checkbox" aria-label="Activar vigilancia pasiva"><span class="track"></span></label></div>
           <label>Tiempo máximo de respuesta (min)<input id="watchdogMinutes" type="number" min="1" max="180" step="1"></label>
         </div>
       </details>
     </div>
     <div id="page-rutas" class="page">
       <section class="card"><div class="cardtop"><h3>Plataformas y rutas</h3><span id="routeCount" class="count">0</span></div>
-        <p class="explain">Auto Sigue envía el mensaje configurado en la conversación actual cuando está activado. En ChatGPT hay un motor específico; en otras IA el envío depende de que su editor y botón de enviar sean identificables y comprobables. Si no puede confirmarse, se detiene para evitar duplicados. Las rutas personalizadas requieren permiso del dominio.</p>
+        <p class="explain">Auto Sigue envía el mensaje configurado en la conversación actual cuando está activado. En ChatGPT hay un motor específico; en otras IA el envío depende de que su editor y botón de enviar sean identificables y comprobables. Si el envío queda sin confirmar, sigue comprobando el historial y evita duplicados. Las rutas personalizadas requieren permiso del dominio.</p>
         <div id="routeList" class="routes"></div>
       </section>
       <section class="card"><h3>Añadir plataforma</h3>
@@ -71,7 +71,7 @@
     </div>
     <div id="notice" class="notice" role="status" aria-live="polite"></div>
   </main>
-  <footer>Auto Sigue v3.2.4 <span>·</span> Envía en la conversación actual; no borra mensajes.</footer>
+  <footer>Auto Sigue v3.4.2 <span>·</span> Envía en la conversación actual; no borra mensajes.</footer>
 </div>
 <script src="ai-routes.js"></script>
 <script src="popup.js"></script>

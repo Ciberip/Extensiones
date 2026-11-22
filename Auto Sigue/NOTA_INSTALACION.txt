@@ -1,1 +1,14 @@
-Auto Sigue 3.2.4. Extrae el ZIP y carga la carpeta en chrome://extensions. Recarga las pestañas.
+Auto Sigue v3.3.1 - INSTALACIÓN CORREGIDA
+
+1. Extrae el archivo ZIP completo en una carpeta nueva.
+2. Abre chrome://extensions y activa Modo desarrollador.
+3. Desactiva la versión antigua de Auto Sigue para evitar dobles envíos.
+4. Pulsa Cargar descomprimida.
+5. SELECCIONA LA CARPETA EXTRAÍDA: Auto_Sigue_3.3.1_CARGAR_DIRECTO.
+   IMPORTANTE: dentro de esa misma carpeta ves directamente manifest.json.
+6. Abre o recarga ChatGPT. Activa Auto Sigue y Auto Sigue en este chat.
+
+La versión anterior incluía un nivel de carpeta extra, por eso Chrome no encontraba manifest.json. Esta versión ya NO tiene ese nivel extra.
+No selecciones el archivo ZIP directamente. Descomprímelo primero.
+
+No actives dos copias de Auto Sigue a la vez.

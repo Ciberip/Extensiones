@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DEFAULT = Object.freeze({ enabled: true, continueText:'sigue', finishDelaySeconds:3, watchdogEnabled:true, watchdogMinutes:20, maxContinuesPerChat:12, completionPhrase:'HE ACABADO' });
+const DEFAULT = Object.freeze({ enabled: true, continueText:'autosigue', finishDelaySeconds:3, watchdogEnabled:true, watchdogMinutes:20, maxContinuesPerChat:0, completionPhrase:'HE ACABADO' });
 const ROUTE_KEY = AS_ROUTE_KEY;
 const DATA_DEFAULTS = { ...DEFAULT, enabledChats:{}, stoppedChats:{}, handoffOptionsByChat:{}, handoffStatusByChat:{}, handoffJobsBySource:{} };
 let activeTab = null;
@@ -63,15 +63,15 @@ async function refresh(){const serial=++refreshSerial;try{
   else if(step==='enviando'||step==='escribiendo')setBadge('ENVIANDO','busy');
   else if(state.answering)setBadge('RESPONDIENDO','busy');
   else if(state.stopped)setBadge('DETENIDO');
-  else if(state.lastError)setBadge('REVISAR','failed');
+  else if(step==='pendiente'||state.lastError)setBadge('RECUPERANDO','busy');
   else setBadge('ACTIVO','on');
-  $('statusText').textContent=step==='finalizado'?'La IA ha indicado que terminó la tarea.':state.stopped?'Auto Sigue está detenido para esta conversación.':state.lastError?'No se ha confirmado el último envío.':'Esperando a que termine para enviar el mensaje configurado.';
-  $('handoffStatus').textContent=state.lastError||state.lastAction||'';
+  $('statusText').textContent=step==='finalizado'?'La IA ha indicado que terminó la tarea.':state.stopped?'Auto Sigue está detenido para esta conversación.':step==='pendiente'||state.lastError?'Comprobando automáticamente el envío.':'Esperando a que termine para enviar el mensaje configurado.';
+  $('handoffStatus').textContent=step==='pendiente'?'Revisando el historial automáticamente, sin duplicar el mensaje.':(state.lastError||state.lastAction||'');
   $('handoffNow').disabled=!!state.answering||!!state.sending||busyAction;
   $('handoffReset').disabled=busyAction;
 }catch(e){writeNotice('Error al cargar el panel: '+String(e.message||e),'error');}}
 function normalizeValue(id){const el=$(id);if(el.type==='checkbox')return el.checked;if(el.type==='number'){const value=Number(el.value);if(!Number.isFinite(value))throw Error('Introduce un número válido.');const low=Number(el.min),high=Number(el.max);if(value<low||value>high||!Number.isInteger(value))throw Error('El valor debe ser un entero entre '+low+' y '+high+'.');return value;}if((id==='continueText'||id==='completionPhrase')&&!String(el.value).trim())throw Error('El mensaje y la frase de finalización no pueden quedar vacíos.');return el.value.trim();}
-for(const id of Object.keys(DEFAULT).filter(x=>!['continueText','completionPhrase'].includes(x))){$(id).addEventListener('change',async()=>{const el=$(id);el.disabled=true;try{await chrome.storage.local.set({[id]:normalizeValue(id)});writeNotice('Ajuste guardado.');}catch(err){writeNotice('No se guardó el ajuste: '+err.message,'error');}finally{el.disabled=false;await refresh();}});}
+for(const id of Object.keys(DEFAULT).filter(x=>!['continueText','completionPhrase'].includes(x))){if(!$(id))continue;$(id).addEventListener('change',async()=>{const el=$(id);el.disabled=true;try{await chrome.storage.local.set({[id]:normalizeValue(id)});writeNotice('Ajuste guardado.');}catch(err){writeNotice('No se guardó el ajuste: '+err.message,'error');}finally{el.disabled=false;await refresh();}});}
 $('saveMessages').addEventListener('click',async()=>{
   const button=$('saveMessages');button.disabled=true;
   try{

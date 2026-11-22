@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Auto Sigue",
-  "version": "3.2.4",
-  "description": "Auto Sigue: envía el mensaje configurado en la conversación actual. Sin migración de chats.",
+  "version": "3.4.2",
+  "description": "Auto Sigue 3.4.2: recuperación automática, sin revisión manual y sin interrupciones por tiempo.",
   "permissions": [
     "storage",
     "tabs",
     "unlimitedStorage",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
